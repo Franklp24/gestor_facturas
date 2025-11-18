@@ -6,6 +6,38 @@ from datetime import datetime, timedelta
 # --- Configuración de la base de datos ---
 DATABASE = 'facturas.db'
 
+# --- Configuración de Flask y Rutas ---
+# La inicialización de la app DEBE ir antes de usarla para decoradores (@app.route)
+app = Flask(__name__)
+
+# ------------------------------------------------------------------
+# FUNCIONES AUXILIARES DE JINJA:
+# Necesarias para el procesamiento de fechas y vencimientos en index.html
+# ------------------------------------------------------------------
+def inject_globals():
+    """Inyecta funciones y filtros customizados de fecha en el contexto de Jinja."""
+    
+    def now_context():
+        """Retorna la fecha y hora actual (objeto datetime)."""
+        return datetime.now()
+
+    def to_date_filter(value):
+        """Convierte un string (YYYY-MM-DD) a un objeto datetime."""
+        if not value:
+            return None
+        try:
+            return datetime.strptime(value, '%Y-%m-%d')
+        except (ValueError, TypeError):
+            return None # Manejar strings no válidos
+
+    # Devuelve un diccionario con las funciones y filtros que se inyectarán
+    return dict(now=now_context, to_date=to_date_filter)
+
+# Registra el context processor para que 'now()' y '| to_date' estén disponibles en todas las plantillas
+app.context_processor(inject_globals) 
+
+
+# --- Funciones de DB ---
 def get_db():
     # Inicializa o recupera la conexión a la base de datos
     db = getattr(g, '_database', None)
@@ -38,9 +70,6 @@ def inicializar_db():
             );
         ''')
         db.commit()
-
-# --- Configuración de Flask y Rutas ---
-app = Flask(__name__)
 
 @app.route('/')
 def index():

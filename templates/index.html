@@ -3,224 +3,158 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestor de Facturas (Automático)</title>
-    <!-- Incluye Tailwind CSS (CDN) para un estilo simple y moderno -->
+    <title>Gestor de Facturas - Demo</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Configuración para usar la fuente Inter -->
     <style>
-        /* Configuración personalizada de Tailwind y fuente */
-        :root {
-            --color-primary: #10b981; /* Esmeralda (verde) */
-        }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #1f2937; /* Gris oscuro */
-            color: #f3f4f6; /* Texto claro */
+            background-color: #1a1a2e; /* Fondo oscuro */
+            color: #ffffff; /* Texto claro */
         }
         .container {
             max-width: 900px;
+            margin: 2rem auto;
+            padding: 1.5rem;
+            background-color: #2c2c43; /* Contenedor más claro */
+            border-radius: 12px;
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.3);
         }
-        .btn-primary {
-            background-color: var(--color-primary);
-            transition: background-color 0.2s;
+        input, button {
+            border-radius: 6px;
         }
-        .btn-primary:hover {
-            background-color: #059669; /* Un poco más oscuro al pasar el ratón */
+        .form-input {
+            width: 100%;
+            padding: 0.75rem;
+            margin-top: 0.25rem;
+            background-color: #3b3b5c;
+            border: 1px solid #4a4a70;
+            color: #ffffff;
         }
-        .input-field {
-            background-color: #374151;
-            border: 1px solid #4b5563;
-            color: #f3f4f6;
+        .btn-guardar {
+            background-color: #4CAF50; /* Verde vibrante */
+            color: white;
+            padding: 0.75rem 1.5rem;
+            font-weight: 600;
+            transition: background-color 0.3s ease;
         }
-        /* Estilo para los diferentes estados */
-        .badge-pendiente { 
-            background-color: #f59e0b; /* Naranja */
-            box-shadow: 0 0 5px rgba(245, 158, 11, 0.5);
-        }
-        .badge-pagada { 
-            background-color: #10b981; /* Verde */
-        }
-        .badge-vencida { 
-            background-color: #ef4444; /* Rojo */
-            box-shadow: 0 0 8px rgba(239, 68, 68, 0.7);
-        }
-        .badge-vence-pronto {
-            background-color: #fbbf24; /* Amarillo oscuro */
-            animation: pulse-yellow 1.5s infinite;
-        }
-        @keyframes pulse-yellow {
-            0%, 100% { transform: scale(1); opacity: 1; }
-            50% { transform: scale(1.03); opacity: 0.8; }
+        .btn-guardar:hover {
+            background-color: #45a049;
         }
     </style>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        emerald: {
-                            500: '#10b981',
-                        }
-                    }
-                }
-            }
-        }
-    </script>
 </head>
-<body class="p-4 md:p-8">
+<body>
+    <div class="container">
+        <h1 class="text-3xl font-bold text-center mb-6 text-indigo-300">Gestor de Facturas</h1>
 
-    <div class="container mx-auto">
-        <h1 class="text-4xl font-extrabold text-white mb-6">Gestor de Facturas (Automático)</h1>
-
-        <!-- Mensajes Flash de Flask -->
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                <div class="mb-4">
-                    {% for category, message in messages %}
-                        <div class="p-3 rounded-lg text-sm {% if category == 'error' %}bg-red-500{% else %}bg-green-500{% endif %} text-white font-medium shadow-md">
-                            {{ message }}
-                        </div>
-                    {% endfor %}
-                </div>
-            {% endif %}
-        {% endwith %}
-
-        <!-- Formulario de Registro de Nueva Factura -->
-        <div class="bg-gray-800 p-6 rounded-xl shadow-2xl mb-8">
-            <h2 class="text-2xl font-semibold mb-5 flex items-center">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-3 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        <!-- SECCIÓN DE REGISTRO DE NUEVA FACTURA -->
+        <div class="bg-gray-700 p-6 rounded-lg mb-8">
+            <h2 class="text-xl font-semibold mb-4 flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m-5 4h4a2 2 0 002-2V6a2 2 0 00-2-2H9a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
                 Registro de Nueva Factura
             </h2>
             
-            <form action="/guardar_factura" method="post">
+            <!-- CORRECCIÓN CRÍTICA: action y method apuntando a la ruta correcta -->
+            <form action="{{ url_for('guardar_factura') }}" method="POST" class="space-y-4">
                 
-                <!-- Cliente/Nombre -->
-                <div class="col-span-1">
-                    <label for="cliente" class="block text-sm font-medium mb-1">Cliente</label>
-                    <input type="text" id="cliente" name="cliente" required
-                           class="w-full p-2.5 rounded-lg input-field focus:ring focus:ring-emerald-500" placeholder="Ej: John Doe">
-                </div>
-                
-                <!-- Monto/Precio -->
-                <div class="col-span-1">
-                    <label for="monto" class="block text-sm font-medium mb-1">Monto ($)</label>
-                    <input type="number" id="monto" name="monto" step="0.01" required
-                           class="w-full p-2.5 rounded-lg input-field focus:ring focus:ring-emerald-500" placeholder="Ej: 150.50">
+                <div>
+                    <label for="nombre" class="block text-sm font-medium text-gray-300">Nombre:</label>
+                    <input type="text" id="nombre" name="nombre" class="form-input" required>
                 </div>
                 
-                <!-- Fecha -->
-                <div class="col-span-1">
-                    <label for="fecha" class="block text-sm font-medium mb-1">Fecha de Vencimiento</label>
-                    <input type="date" id="fecha" name="fecha" required
-                           class="w-full p-2.5 rounded-lg input-field focus:ring focus:ring-emerald-500">
-                </div>
-
-                <!-- NOTA: Estado inicial siempre es Pendiente -->
-                <div class="col-span-1">
-                    <label for="estado" class="block text-sm font-medium mb-1">Estado (Inicial)</label>
-                    <input type="text" value="Pendiente" disabled
-                           class="w-full p-2.5 rounded-lg input-field bg-gray-700 cursor-not-allowed">
-                    <input type="hidden" id="estado" name="estado" value="Pendiente">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label for="codigo_producto" class="block text-sm font-medium text-gray-300">Cód. Producto:</label>
+                        <input type="text" id="codigo_producto" name="codigo_producto" class="form-input" required>
+                    </div>
+                    <div>
+                        <label for="precio" class="block text-sm font-medium text-gray-300">Precio ($):</label>
+                        <input type="number" step="0.01" id="precio" name="precio" class="form-input" required>
+                    </div>
                 </div>
                 
-                <!-- Botón de Enviar -->
-                <div class="col-span-full mt-4">
-                    <button type="submit" class="w-full py-3 px-4 rounded-lg text-white font-bold text-lg btn-primary shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/50">
-                        Guardar Factura
-                    </button>
+                <div>
+                    <!-- Usamos type="date" para la interfaz de usuario, pero el formato en DB es YYYY-MM-DD -->
+                    <label for="fecha_expira" class="block text-sm font-medium text-gray-300">Fecha Expira (AAAA-MM-DD):</label>
+                    <input type="date" id="fecha_expira" name="fecha_expira" class="form-input" required>
                 </div>
+                
+                <div>
+                    <label for="email_cliente" class="block text-sm font-medium text-gray-300">Email Cliente (Opcional):</label>
+                    <input type="email" id="email_cliente" name="email_cliente" class="form-input">
+                </div>
+                
+                <button type="submit" class="w-full btn-guardar rounded-lg mt-4 shadow-lg hover:shadow-xl">
+                    Guardar Factura
+                </button>
             </form>
         </div>
 
-        <!-- Sección de Alertas y Tabla -->
-        <div class="mb-8">
-            <h2 class="text-2xl font-semibold mb-4 flex items-center">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-3 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        <!-- SECCIÓN DE ALERTAS DE VENCIMIENTO -->
+        <div class="bg-yellow-800 bg-opacity-30 p-4 rounded-lg mb-8 border border-yellow-600">
+            <h2 class="text-xl font-semibold mb-2 flex items-center text-yellow-300">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.456-1.583 1.54-2.456L13.54 4.544c-.916-.873-2.364-.873-3.28 0L3.54 18.544c-.916.873-.001 2.456 1.54 2.456z" />
                 </svg>
                 Alertas de Vencimiento
             </h2>
-            
-            {% if hay_alerta_general %}
-            <p class="text-red-400 font-bold bg-gray-800 p-3 rounded-lg border-4 border-red-500/50 animate-pulse">
-                🚨 ¡ATENCIÓN! Tienes facturas que vencen en los próximos 7 días o ya están vencidas. ¡Revisa la tabla!
+            <p class="text-yellow-100">
+                {# La variable 'alertas' es calculada en Python y enviada a la plantilla #}
+                {% if alertas > 0 %}
+                    <span class="font-bold text-red-400">¡ALERTA!</span> Tienes {{ alertas }} factura{{ 's' if alertas != 1 else '' }} por vencer en los próximos 7 días.
+                {% else %}
+                    No hay facturas por vencer en los próximos 7 días.
+                {% endif %}
             </p>
-            {% else %}
-            <p class="text-green-400 font-medium bg-gray-800 p-3 rounded-lg border border-green-400/30">
-                ✅ No hay facturas por vencer o vencidas en este momento.
-            </p>
-            {% endif %}
         </div>
 
-        <!-- Tabla de Facturas -->
-        <div class="bg-gray-800 p-6 rounded-xl shadow-2xl overflow-x-auto">
-            <h2 class="text-2xl font-semibold mb-5 text-white">Listado de Facturas ({{ facturas|length }})</h2>
-            
-            {% if facturas %}
-            <table class="min-w-full divide-y divide-gray-700">
-                <thead class="bg-gray-700">
-                    <tr>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tl-lg">ID</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Cliente</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Monto</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Vencimiento</th>
-                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Estado Calculado</th>
-                        <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tr-lg">Acciones</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-700">
-                    {% for factura in facturas %}
-                    <tr class="hover:bg-gray-700 transition duration-150">
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-100">{{ factura.id }}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{{ factura.cliente }}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-emerald-400">$ {{ "{:,.2f}".format(factura.monto) }}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                            {{ factura.fecha }}
-                            {% if factura.alerta_vencimiento and factura.dias_restantes == 0 %}
-                                <span class="ml-2 px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full badge-vence-pronto text-gray-800">¡HOY!</span>
-                            {% elif factura.alerta_vencimiento and factura.dias_restantes > 0 %}
-                                <span class="ml-2 px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full badge-vence-pronto text-gray-800">En {{ factura.dias_restantes }} días</span>
-                            {% endif %}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full text-white
-                                {% if factura.estado_calculado == 'Pagada' %} badge-pagada
-                                {% elif factura.estado_calculado == 'Vencida' %} badge-vencida
-                                {% else %} badge-pendiente
-                                {% endif %}">
-                                {{ factura.estado_calculado }}
-                            </span>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium flex space-x-3 justify-end items-center">
-                            
-                            {% if factura.estado_calculado != 'Pagada' %}
-                                <!-- Botón para marcar como Pagada (nueva funcionalidad) -->
-                                <a href="{{ url_for('marcar_pagada', factura_id=factura.id) }}" 
-                                    class="text-emerald-400 hover:text-emerald-200 transition duration-150 font-semibold"
-                                    title="Marcar como Pagada">
-                                    Pagar
-                                </a>
-                            {% endif %}
-                            
-                            <!-- Botón de Eliminar (existente) -->
-                            <a href="{{ url_for('eliminar_factura', factura_id=factura.id) }}" 
-                               class="text-red-500 hover:text-red-700 transition duration-150 ml-4" 
-                               onclick="return confirm('¿Estás seguro de que quieres eliminar esta factura? (Recuerda que no se usa alert() en Canvas, sino un modal)')"
-                               title="Eliminar Factura">
-                                Eliminar
-                            </a>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-            {% else %}
-            <p class="text-gray-400 italic">No hay facturas registradas. ¡Agrega la primera!</p>
-            {% endif %}
-        </div>
+        <!-- SECCIÓN DE LISTADO DE FACTURAS -->
+        <h2 class="text-2xl font-semibold mb-4 text-indigo-300">Listado de Facturas (Total: {{ facturas | length }})</h2>
         
+        {% if facturas %}
+            <div class="overflow-x-auto shadow-md rounded-lg">
+                <table class="min-w-full divide-y divide-gray-600">
+                    <thead class="bg-gray-600">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-200 uppercase tracking-wider">Nombre</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-200 uppercase tracking-wider">Cód. Producto</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-200 uppercase tracking-wider">Precio ($)</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-200 uppercase tracking-wider">Vence</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-700">
+                        {% for factura in facturas %}
+                            <tr class="hover:bg-gray-700 transition duration-150 ease-in-out {% if loop.index is divisible by 2 %}bg-gray-800{% else %}bg-gray-750{% endif %}">
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-100">{{ factura.nombre }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{{ factura.codigo_producto }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-green-400">${{ "{:,.2f}".format(factura.precio) }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm 
+                                    {% set expira_str = factura.fecha_expira | default('2099-12-31') %}
+                                    {% set expira_dt = expira_str | to_date %} 
+                                    {% set today = now() %}
+                                    
+                                    {% if expira_dt and expira_dt.strftime('%Y-%m-%d') < today.strftime('%Y-%m-%d') %}
+                                        text-red-500 font-bold 
+                                    {% elif expira_dt and (expira_dt - today).days <= 7 %}
+                                        text-yellow-400 font-semibold
+                                    {% else %}
+                                        text-gray-300
+                                    {% endif %}
+                                ">
+                                    {{ expira_str }}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="text-center text-gray-400 p-4 border border-dashed border-gray-600 rounded-lg">Aún no hay facturas registradas. ¡Empieza a agregar una!</p>
+        {% endif %}
+
     </div>
-    
 </body>
 </html>
