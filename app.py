@@ -1,7 +1,8 @@
 import sqlite3
 import os
 from flask import Flask, render_template, request, redirect, url_for, flash
-from datetime import datetime
+# Importamos date y datetime para la comparación de fechas
+from datetime import datetime, date 
 
 # Configuración de la base de datos
 DATABASE = 'facturas.db'
@@ -13,73 +14,110 @@ def get_db():
     return conn
 
 def init_db():
-    """Inicializa la base de datos (crea la tabla si no existe) con las columnas correctas."""
+    """Inicializa la base de datos (crea la tabla si no existe)."""
     conn = get_db()
-    # Definición de la tabla con la columna 'fecha'
     conn.execute('''
         CREATE TABLE IF NOT EXISTS facturas (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             cliente TEXT NOT NULL,
             monto REAL NOT NULL,
             fecha TEXT NOT NULL, 
-            estado TEXT NOT NULL
+            estado TEXT NOT NULL -- Usaremos 'Pendiente' o 'Pagada'
         )
     ''')
     conn.commit()
     conn.close()
 
-def reset_db():
-    """ELIMINA Y RECREA la tabla facturas. Se usa para corregir errores de esquema antiguos."""
-    conn = get_db()
-    conn.execute('DROP TABLE IF EXISTS facturas')
-    conn.commit()
-    conn.close()
-    init_db()
-    print("Database reset and re-initialized.")
+# --- Bloque de Inicialización Forzada ---
+if os.path.exists(DATABASE):
+    os.remove(DATABASE)
+    print(f"Archivo de base de datos antiguo '{DATABASE}' eliminado y será recreado.")
     
+init_db()
+# ----------------------------------------
+
 # Inicializa la aplicación Flask
 app = Flask(__name__)
-# Configura una clave secreta. Es necesaria para usar flash() o sesiones.
-app.secret_key = os.environ.get('SECRET_KEY', 'una_clave_secreta_por_defecto_muy_larga_y_segura_debes_cambiarla')
+app.secret_key = os.environ.get('SECRET_KEY', 'una_clave_secreta_para_flash_messages')
 
-# Inicializa la base de datos (la crea si no existe)
-init_db()
+# --- Lógica de Cálculo de Estado ---
+def calcular_estado(factura):
+    """
+    Calcula el estado dinámico (Pagada, Vencida o Pendiente) de la factura.
+    El estado 'Pagada' es manual, 'Vencida' y 'Pendiente' son automáticos por fecha.
+    """
+    # 1. Si ya está marcada como 'Pagada' en la DB, ese es su estado final.
+    if factura['estado'] == 'Pagada':
+        return 'Pagada'
+    
+    # 2. Si no está Pagada, comparamos la fecha de vencimiento.
+    try:
+        # Convertir la fecha de la DB (string YYYY-MM-DD) a objeto date
+        fecha_vencimiento = datetime.strptime(factura['fecha'], '%Y-%m-%d').date()
+        fecha_hoy = date.today()
+        
+        if fecha_vencimiento < fecha_hoy:
+            return 'Vencida'
+        else:
+            return 'Pendiente'
+    except ValueError:
+        # En caso de que la fecha en la DB sea inválida
+        return 'Error de Fecha'
 
 # --- Rutas de la Aplicación ---
 
 @app.route('/')
 def index():
-    """Muestra la lista de facturas, con corrección automática de esquema."""
+    """Muestra la lista de facturas con estado calculado."""
     conn = get_db()
-    
-    # Intenta hacer la consulta. Si falla por la columna 'fecha', resetea la DB.
-    try:
-        facturas = conn.execute('SELECT * FROM facturas ORDER BY fecha DESC').fetchall()
-    except sqlite3.OperationalError as e:
-        # Si el error es "no such column: fecha", reseteamos la base de datos.
-        if "no such column: fecha" in str(e):
-            print("Error de esquema detectado. La tabla será recreada.")
-            reset_db()
-            # Intenta la consulta de nuevo
-            facturas = conn.execute('SELECT * FROM facturas ORDER BY fecha DESC').fetchall()
-        else:
-            # Si es otro error de SQLite, lo lanzamos.
-            raise e
-            
+    facturas_db = conn.execute('SELECT * FROM facturas ORDER BY fecha DESC').fetchall()
     conn.close()
-    return render_template('index.html', facturas=facturas)
+    
+    facturas_procesadas = []
+    for factura_row in facturas_db:
+        factura = dict(factura_row)
+        factura['estado_calculado'] = calcular_estado(factura)
+        
+        # Lógica para la alerta de vencimiento inminente (próximos 7 días)
+        factura['alerta_vencimiento'] = False
+        factura['dias_restantes'] = None
+
+        if factura['estado_calculado'] == 'Pendiente':
+            try:
+                fecha_vencimiento = datetime.strptime(factura['fecha'], '%Y-%m-%d').date()
+                fecha_hoy = date.today()
+                dias_restantes = (fecha_vencimiento - fecha_hoy).days
+                
+                if dias_restantes >= 0 and dias_restantes <= 7:
+                     factura['alerta_vencimiento'] = True
+                     factura['dias_restantes'] = dias_restantes
+                elif dias_restantes > 7:
+                     factura['dias_restantes'] = dias_restantes
+
+            except ValueError:
+                pass
+            
+        facturas_procesadas.append(factura)
+        
+    # Alerta general si hay alguna factura en riesgo (Pendiente y vence pronto o Vencida)
+    hay_alerta_general = any(f['alerta_vencimiento'] or f['estado_calculado'] == 'Vencida' for f in facturas_procesadas)
+    
+    return render_template('index.html', 
+                           facturas=facturas_procesadas,
+                           hay_alerta_general=hay_alerta_general)
 
 @app.route('/agregar', methods=['POST'])
 def agregar_factura():
-    """Agrega una nueva factura a la base de datos."""
+    """Agrega una nueva factura a la base de datos. El estado inicial siempre es 'Pendiente'."""
     if request.method == 'POST':
         cliente = request.form['cliente']
         monto = request.form['monto']
         fecha = request.form['fecha']
-        estado = request.form['estado']
+        # Forzamos el estado inicial a 'Pendiente'
+        estado = 'Pendiente' 
 
-        if not cliente or not monto or not fecha or not estado:
-            flash('Todos los campos son obligatorios.', 'error')
+        if not cliente or not monto or not fecha:
+            flash('Los campos Cliente, Monto y Fecha son obligatorios.', 'error')
             return redirect(url_for('index'))
 
         conn = get_db()
@@ -87,7 +125,19 @@ def agregar_factura():
                      (cliente, monto, fecha, estado))
         conn.commit()
         conn.close()
+        flash('Factura agregada con éxito e inicialmente marcada como Pendiente.', 'success')
         return redirect(url_for('index'))
+        
+@app.route('/marcar_pagada/<int:factura_id>')
+def marcar_pagada(factura_id):
+    """Marca una factura como 'Pagada' manualmente."""
+    conn = get_db()
+    conn.execute('UPDATE facturas SET estado = ? WHERE id = ?', ('Pagada', factura_id))
+    conn.commit()
+    conn.close()
+    flash(f'Factura #{factura_id} marcada como Pagada con éxito.', 'success')
+    return redirect(url_for('index'))
+
 
 @app.route('/eliminar/<int:factura_id>')
 def eliminar_factura(factura_id):
@@ -96,11 +146,11 @@ def eliminar_factura(factura_id):
     conn.execute('DELETE FROM facturas WHERE id = ?', (factura_id,))
     conn.commit()
     conn.close()
+    flash('Factura eliminada con éxito.', 'success')
     return redirect(url_for('index'))
 
 # --- CONFIGURACIÓN DE INICIO PARA ENTORNO LOCAL Y RENDER ---
 
 if __name__ == '__main__':
-    # Esta configuración lee la variable PORT que proporciona Render.
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=True)
