@@ -57,7 +57,6 @@
                 Registro de Nueva Factura
             </h2>
             
-            <!-- CORRECCIÓN CRÍTICA: action apunta a 'guardar_factura' -->
             <form action="{{ url_for('guardar_factura') }}" method="POST" class="space-y-4">
                 
                 <div>
@@ -77,7 +76,6 @@
                 </div>
                 
                 <div>
-                    <!-- Usamos type="date" para la interfaz de usuario, pero el formato en DB es YYYY-MM-DD -->
                     <label for="fecha_expira" class="block text-sm font-medium text-gray-300">Fecha Expira (AAAA-MM-DD):</label>
                     <input type="date" id="fecha_expira" name="fecha_expira" class="form-input" required>
                 </div>
@@ -127,7 +125,8 @@
                     </thead>
                     <tbody class="divide-y divide-gray-700">
                         {% for factura in facturas %}
-                            <tr class="hover:bg-gray-700 transition duration-150 ease-in-out {% if loop.index is divisible by 2 %}bg-gray-800{% else %}bg-gray-750{% endif %}">
+                            <!-- CORRECCIÓN DE SINTAXIS: Usamos 'is even' en lugar de 'is divisible by 2' y estandarizamos la clase de color -->
+                            <tr class="transition duration-150 ease-in-out hover:bg-gray-700 {% if loop.index is even %}bg-gray-800{% else %}bg-gray-700{% endif %}">
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-100">{{ factura.nombre }}</td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{{ factura.codigo_producto }}</td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-green-400">${{ "{:,.2f}".format(factura.precio) }}</td>
