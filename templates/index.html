@@ -125,7 +125,7 @@
                     </thead>
                     <tbody class="divide-y divide-gray-700">
                         {% for factura in facturas %}
-                            <!-- CORRECCIÓN DE SINTAXIS: Usamos 'is even' en lugar de 'is divisible by 2' y estandarizamos la clase de color -->
+                            <!-- Corrección de sintaxis: usando 'is even' -->
                             <tr class="transition duration-150 ease-in-out hover:bg-gray-700 {% if loop.index is even %}bg-gray-800{% else %}bg-gray-700{% endif %}">
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-100">{{ factura.nombre }}</td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{{ factura.codigo_producto }}</td>
