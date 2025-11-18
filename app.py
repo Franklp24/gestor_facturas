@@ -26,9 +26,11 @@ def inject_globals():
         if not value:
             return None
         try:
+            # Asume que el formato guardado en DB es YYYY-MM-DD
             return datetime.strptime(value, '%Y-%m-%d')
         except (ValueError, TypeError):
-            return None # Manejar strings no válidos
+            # En caso de que el dato en DB sea inválido (ej. None o mal formato)
+            return None 
 
     # Devuelve un diccionario con las funciones y filtros que se inyectarán
     return dict(now=now_context, to_date=to_date_filter)
@@ -87,27 +89,38 @@ def index():
     
     alertas = 0
     for factura in facturas:
-        try:
-            fecha_expira = datetime.strptime(factura['fecha_expira'], '%Y-%m-%d').date()
-            if hoy <= fecha_expira <= siete_dias:
-                alertas += 1
-        except ValueError:
-            # Manejar fechas mal formateadas si las hay
-            pass
+        # Asegúrate de que 'fecha_expira' existe y no es None
+        fecha_str = factura['fecha_expira'] if factura and 'fecha_expira' in factura else None
+        
+        if fecha_str:
+            try:
+                fecha_expira = datetime.strptime(fecha_str, '%Y-%m-%d').date()
+                if hoy <= fecha_expira <= siete_dias:
+                    alertas += 1
+            except ValueError:
+                # Si el formato es incorrecto, simplemente ignoramos la alerta para ese registro
+                pass
 
     return render_template('index.html', facturas=facturas, alertas=alertas)
 
-# RUTA NUEVA: Para manejar el envío del formulario (POST)
+# RUTA CORRECTA: Endpoint al que apunta el formulario
 @app.route('/guardar_factura', methods=['POST'])
 def guardar_factura():
-    """Inserta una nueva factura en la base de datos."""
+    """Inserta una nueva factura en la base de datos y redirige."""
     if request.method == 'POST':
         # 1. Obtener datos del formulario
-        nombre = request.form['nombre']
-        codigo = request.form['codigo_producto']
-        precio = float(request.form['precio'])
-        fecha_expira = request.form['fecha_expira']
-        email = request.form['email_cliente']
+        try:
+            nombre = request.form['nombre']
+            codigo = request.form['codigo_producto']
+            # Asegurarse de que el precio sea un float, manejando errores de conversión
+            precio = float(request.form['precio'])
+            fecha_expira = request.form['fecha_expira']
+            email = request.form.get('email_cliente', '') # Usar .get para manejar campos opcionales
+        except ValueError:
+            # Si el precio no es un número válido
+            return "Error: El precio debe ser un número válido.", 400
+        except KeyError as e:
+            return f"Error: Falta un campo requerido en el formulario: {e}", 400
         
         # 2. Guardar en la DB
         try:
@@ -120,9 +133,9 @@ def guardar_factura():
             # Redirigir al inicio después de guardar (para evitar reenvío)
             return redirect(url_for('index'))
         except Exception as e:
-            # En caso de error (ej. precio no es un número), redirige con mensaje
+            # Error de base de datos (ej. tipo de columna)
             print(f"Error al guardar la factura: {e}")
-            return f"Ocurrió un error al guardar la factura: {e}", 500
+            return f"Ocurrió un error de base de datos al guardar: {e}", 500
 
 # --- Ejecución de la aplicación ---
 if __name__ == '__main__':
