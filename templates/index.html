@@ -1,131 +1,189 @@
 <!DOCTYPE html>
-
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Registro de Facturas - Web App</title>
-<!-- Usando un CSS simple para un look limpio y funcional -->
-<style>
-body {
-font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-margin: 0;
-padding: 20px;
-background-color: #f4f4f9;
-color: #333;
-}
-.container {
-max-width: 800px;
-margin: auto;
-background: white;
-padding: 30px;
-border-radius: 10px;
-box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-}
-h2 {
-color: #007bff;
-border-bottom: 2px solid #eee;
-padding-bottom: 10px;
-margin-top: 20px;
-}
-.alert {
-padding: 15px;
-margin-bottom: 15px;
-border-radius: 8px;
-font-size: 0.95rem;
-box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-}
-.vence {
-background-color: #fff3cd;
-color: #856404;
-border: 1px solid #ffeeba;
-}
-.vencida {
-background-color: #f8d7da;
-color: #721c24;
-border: 1px solid #f5c6cb;
-}
-form div {
-margin-bottom: 15px;
-display: flex;
-align-items: center;
-}
-label {
-display: inline-block;
-width: 150px;
-font-weight: 600;
-}
-input[type="text"],
-input[type="date"],
-input[type="number"] {
-flex-grow: 1;
-padding: 10px;
-border: 1px solid #ccc;
-border-radius: 5px;
-max-width: 300px;
-}
-button {
-padding: 10px 20px;
-background-color: #007bff;
-color: white;
-border: none;
-border-radius: 5px;
-cursor: pointer;
-transition: background-color 0.3s;
-}
-button:hover {
-background-color: #0056b3;
-}
-.error-message {
-background-color: #f8d7da;
-color: #721c24;
-padding: 10px;
-border-radius: 5px;
-margin-bottom: 20px;
-border: 1px solid #f5c6cb;
-}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor de Facturas</title>
+    <!-- Incluye Tailwind CSS (CDN) para un estilo simple y moderno -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Configuración personalizada de Tailwind y fuente */
+        :root {
+            --color-primary: #10b981; /* Esmeralda (verde) */
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1f2937; /* Gris oscuro */
+            color: #f3f4f6; /* Texto claro */
+        }
+        .container {
+            max-width: 900px;
+        }
+        .btn-primary {
+            background-color: var(--color-primary);
+            transition: background-color 0.2s;
+        }
+        .btn-primary:hover {
+            background-color: #059669; /* Un poco más oscuro al pasar el ratón */
+        }
+        .input-field {
+            background-color: #374151;
+            border: 1px solid #4b5563;
+            color: #f3f4f6;
+        }
+        /* Estilo para los diferentes estados */
+        .badge-pendiente { background-color: #f59e0b; }
+        .badge-pagada { background-color: #10b981; }
+        .badge-vencida { background-color: #ef4444; }
+    </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        emerald: {
+                            500: '#10b981',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
 </head>
-<body>
-<div class="container">
-<h1>Gestor de Facturas</h1>
+<body class="p-4 md:p-8">
 
-    {% if alerta %}
-        <div class="error-message">{{ alerta }}</div>
-    {% endif %}
+    <div class="container mx-auto">
+        <h1 class="text-4xl font-extrabold text-white mb-6">Gestor de Facturas</h1>
+
+        <!-- Mensajes Flash de Flask -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="mb-4">
+                    {% for category, message in messages %}
+                        <div class="p-3 rounded-lg text-sm {% if category == 'error' %}bg-red-500{% else %}bg-green-500{% endif %} text-white font-medium shadow-md">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <!-- Formulario de Registro de Nueva Factura -->
+        <div class="bg-gray-800 p-6 rounded-xl shadow-2xl mb-8">
+            <h2 class="text-2xl font-semibold mb-5 flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-3 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Registro de Nueva Factura
+            </h2>
+            
+            <!-- **AQUÍ ESTÁ LA CLAVE: method="POST" y action="/agregar"** -->
+            <form action="{{ url_for('agregar_factura') }}" method="POST" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                <!-- Cliente/Nombre -->
+                <div class="col-span-1">
+                    <label for="cliente" class="block text-sm font-medium mb-1">Cliente</label>
+                    <input type="text" id="cliente" name="cliente" required
+                           class="w-full p-2.5 rounded-lg input-field focus:ring focus:ring-emerald-500" placeholder="Ej: John Doe">
+                </div>
+                
+                <!-- Monto/Precio -->
+                <div class="col-span-1">
+                    <label for="monto" class="block text-sm font-medium mb-1">Monto ($)</label>
+                    <input type="number" id="monto" name="monto" step="0.01" required
+                           class="w-full p-2.5 rounded-lg input-field focus:ring focus:ring-emerald-500" placeholder="Ej: 150.50">
+                </div>
+                
+                <!-- Fecha -->
+                <div class="col-span-1">
+                    <label for="fecha" class="block text-sm font-medium mb-1">Fecha de Vencimiento</label>
+                    <input type="date" id="fecha" name="fecha" required
+                           class="w-full p-2.5 rounded-lg input-field focus:ring focus:ring-emerald-500">
+                </div>
+
+                <!-- Estado -->
+                <div class="col-span-1">
+                    <label for="estado" class="block text-sm font-medium mb-1">Estado</label>
+                    <select id="estado" name="estado" required
+                            class="w-full p-2.5 rounded-lg input-field focus:ring focus:ring-emerald-500 appearance-none">
+                        <option value="Pendiente">Pendiente</option>
+                        <option value="Pagada">Pagada</option>
+                        <option value="Vencida">Vencida</option>
+                    </select>
+                </div>
+                
+                <!-- Botón de Enviar -->
+                <div class="col-span-full mt-4">
+                    <button type="submit" class="w-full py-3 px-4 rounded-lg text-white font-bold text-lg btn-primary shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/50">
+                        Guardar Factura
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Sección de Alertas y Tabla -->
+        <div class="mb-8">
+            <h2 class="text-2xl font-semibold mb-4 flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-3 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                Alertas de Vencimiento
+            </h2>
+            <!-- Lógica de Alerta de Vencimiento (Simple) -->
+            <p class="text-yellow-400 font-medium bg-gray-800 p-3 rounded-lg border border-yellow-400/30">
+                ⚠️ No hay facturas por vencer en los próximos 7 días.
+            </p>
+        </div>
+
+        <!-- Tabla de Facturas -->
+        <div class="bg-gray-800 p-6 rounded-xl shadow-2xl overflow-x-auto">
+            <h2 class="text-2xl font-semibold mb-5 text-white">Listado de Facturas ({{ facturas|length }})</h2>
+            
+            {% if facturas %}
+            <table class="min-w-full divide-y divide-gray-700">
+                <thead class="bg-gray-700">
+                    <tr>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tl-lg">ID</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Cliente</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Monto</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Vencimiento</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Estado</th>
+                        <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider rounded-tr-lg">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-700">
+                    {% for factura in facturas %}
+                    <tr class="hover:bg-gray-700 transition duration-150">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-100">{{ factura.id }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{{ factura.cliente }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-emerald-400">$ {{ "{:,.2f}".format(factura.monto) }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{{ factura.fecha }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full text-white
+                                {% if factura.estado == 'Pagada' %} badge-pagada
+                                {% elif factura.estado == 'Vencida' %} badge-vencida
+                                {% else %} badge-pendiente
+                                {% endif %}">
+                                {{ factura.estado }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <a href="{{ url_for('eliminar_factura', factura_id=factura.id) }}" 
+                               class="text-red-500 hover:text-red-700 transition duration-150" 
+                               onclick="return confirm('¿Estás seguro de que quieres eliminar esta factura? (Recuerda que no se usa alert() en Canvas, sino un modal)')">
+                                Eliminar
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="text-gray-400 italic">No hay facturas registradas. ¡Agrega la primera!</p>
+            {% endif %}
+        </div>
+        
+    </div>
     
-    <h2>🧾 Registro de Nueva Factura</h2>
-    <form method="POST">
-        <div><label for="nombre">Nombre:</label><input type="text" id="nombre" name="nombre" required></div>
-        <div><label for="codigo">Cód. Producto:</label><input type="text" id="codigo" name="codigo" required></div>
-        <!-- Usamos type="number" para mejor validación en el navegador -->
-        <div><label for="precio">Precio ($):</label><input type="number" id="precio" name="precio" step="0.01" min="0.01" required></div>
-        <div><label for="fecha_expira">Fecha Expira (AAAA-MM-DD):</label><input type="date" id="fecha_expira" name="fecha_expira" required></div>
-        <div><label for="email">Email Cliente:</label><input type="text" id="email" name="email"></div>
-        <button type="submit">💾 Guardar Factura</button>
-    </form>
-
-    <hr style="margin: 30px 0;">
-    
-    <h2>🔔 Alertas de Vencimiento</h2>
-
-    {% if vencimientos %}
-        {% for f in vencimientos %}
-            <div class="alert {% if f.estado == 'VENCIDA' %}vencida{% else %}vence{% endif %}">
-                {% if f.estado == 'VENCIDA' %}
-                    ⚠️ **VENCIDA** hace **{{ f.dias_restantes|abs }}** días:
-                {% else %}
-                    ⏳ Vence en **{{ f.dias_restantes }}** días:
-                {% endif %}
-                <br>
-                **{{ f.nombre }}** (Vence: {{ f.vence }}) - **${{ "%.2f"|format(f.precio) }}**
-            </div>
-        {% endfor %}
-    {% else %}
-        <p>🎉 No hay facturas por vencer en los próximos 7 días.</p>
-    {% endif %}
-</div>
-
-
 </body>
 </html>
