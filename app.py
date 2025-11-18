@@ -1,153 +1,169 @@
-import sqlite3
 import os
-from flask import Flask, render_template, request, redirect, url_for, flash
-# Importamos date y datetime para la comparación de fechas
-from datetime import datetime, date 
+import sqlite3
+from datetime import datetime, date
+from flask import Flask, render_template, g, request, redirect, url_for, flash
 
-# Configuración de la base de datos
+# --- Constantes y Configuración ---
 DATABASE = 'facturas.db'
+# Nota: La clave secreta debe estar en las Environment Variables de Render
+SECRET_KEY = os.environ.get('SECRET_KEY', 'una_clave_secreta_fuerte_y_unica_de_backup')
+DATABASE_VERSION = 1
+
+app = Flask(__name__)
+# Configuración Flask
+app.config.from_object(__name__)
+
+# --- Funciones de Base de Datos ---
 
 def get_db():
-    """Función para obtener una conexión a la base de datos."""
-    conn = sqlite3.connect(DATABASE)
-    conn.row_factory = sqlite3.Row  # Permite acceder a las columnas por nombre
-    return conn
+    """Obtiene la conexión a la base de datos para la solicitud actual."""
+    db = getattr(g, '_database', None)
+    if db is None:
+        db = g._database = sqlite3.connect(DATABASE)
+        # Permite acceder a las columnas por nombre
+        db.row_factory = sqlite3.Row
+    return db
 
-def init_db():
-    """Inicializa la base de datos (crea la tabla si no existe)."""
-    conn = get_db()
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS facturas (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            cliente TEXT NOT NULL,
-            monto REAL NOT NULL,
-            fecha TEXT NOT NULL, 
-            estado TEXT NOT NULL -- Usaremos 'Pendiente' o 'Pagada'
-        )
-    ''')
-    conn.commit()
-    conn.close()
+def cerrar_db(exception):
+    """Cierra la conexión a la base de datos al finalizar la solicitud."""
+    db = getattr(g, '_database', None)
+    if db is not None:
+        db.close()
 
-# --- Bloque de Inicialización Forzada ---
-if os.path.exists(DATABASE):
-    os.remove(DATABASE)
-    print(f"Archivo de base de datos antiguo '{DATABASE}' eliminado y será recreado.")
-    
-init_db()
-# ----------------------------------------
-
-# Inicializa la aplicación Flask
-app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', 'una_clave_secreta_para_flash_messages')
-
-# --- Lógica de Cálculo de Estado ---
-def calcular_estado(factura):
-    """
-    Calcula el estado dinámico (Pagada, Vencida o Pendiente) de la factura.
-    El estado 'Pagada' es manual, 'Vencida' y 'Pendiente' son automáticos por fecha.
-    """
-    # 1. Si ya está marcada como 'Pagada' en la DB, ese es su estado final.
-    if factura['estado'] == 'Pagada':
-        return 'Pagada'
-    
-    # 2. Si no está Pagada, comparamos la fecha de vencimiento.
+def inicializar_db():
+    """Crea la tabla 'facturas' si no existe."""
+    conn = None
     try:
-        # Convertir la fecha de la DB (string YYYY-MM-DD) a objeto date
-        fecha_vencimiento = datetime.strptime(factura['fecha'], '%Y-%m-%d').date()
-        fecha_hoy = date.today()
+        # Crea la base de datos si no existe
+        conn = sqlite3.connect(DATABASE)
+        cursor = conn.cursor()
         
-        if fecha_vencimiento < fecha_hoy:
-            return 'Vencida'
-        else:
-            return 'Pendiente'
-    except ValueError:
-        # En caso de que la fecha en la DB sea inválida
-        return 'Error de Fecha'
+        # Crear la tabla de facturas SOLO SI NO EXISTE
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS facturas (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nombre TEXT NOT NULL,
+                codigo_producto TEXT NOT NULL,
+                precio REAL NOT NULL,
+                fecha_expira TEXT NOT NULL,
+                email_cliente TEXT NOT NULL
+            )
+        """)
+        
+        # Crear tabla de versión (si es necesario)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS db_version (version INTEGER)
+        """)
+        
+        # Verificar si ya existe el registro de versión antes de insertar
+        cursor.execute("SELECT COUNT(*) FROM db_version")
+        if cursor.fetchone()[0] == 0:
+            cursor.execute("INSERT INTO db_version (version) VALUES (?)", (DATABASE_VERSION,))
+        
+        conn.commit()
+        print("Esquema de base de datos verificado y listo.")
+    except Exception as e:
+        print(f"Error al inicializar la base de datos: {e}")
+    finally:
+        if conn:
+            conn.close()
 
-# --- Rutas de la Aplicación ---
+# Llamada inicial: Asegura que la DB exista antes de que Flask reciba solicitudes.
+# Esto es crucial para el arranque.
+inicializar_db()
 
-@app.route('/')
+# Se asegura de que la DB se cierre después de cada solicitud
+app.teardown_appcontext(cerrar_db)
+
+# --- Lógica de la Aplicación ---
+
+def obtener_alertas(conn):
+    """Devuelve las facturas que vencen en los próximos 7 días."""
+    hoy = date.today().isoformat()
+    cursor = conn.cursor()
+    
+    # Consulta: facturas que vencen hoy o en los próximos 7 días.
+    cursor.execute("""
+        SELECT * FROM facturas 
+        WHERE date(fecha_expira) BETWEEN date(?) AND date('now', '+7 day')
+        ORDER BY fecha_expira ASC
+    """, (hoy,))
+    
+    return cursor.fetchall()
+
+def obtener_facturas(conn):
+    """Devuelve todas las facturas ordenadas por fecha de expiración."""
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM facturas ORDER BY fecha_expira DESC")
+    return cursor.fetchall()
+
+@app.route('/', methods=['GET', 'POST'])
 def index():
-    """Muestra la lista de facturas con estado calculado."""
+    """Muestra el formulario y la lista de facturas, y maneja el envío del formulario."""
+    
     conn = get_db()
-    facturas_db = conn.execute('SELECT * FROM facturas ORDER BY fecha DESC').fetchall()
-    conn.close()
     
-    facturas_procesadas = []
-    for factura_row in facturas_db:
-        factura = dict(factura_row)
-        factura['estado_calculado'] = calcular_estado(factura)
-        
-        # Lógica para la alerta de vencimiento inminente (próximos 7 días)
-        factura['alerta_vencimiento'] = False
-        factura['dias_restantes'] = None
-
-        if factura['estado_calculado'] == 'Pendiente':
-            try:
-                fecha_vencimiento = datetime.strptime(factura['fecha'], '%Y-%m-%d').date()
-                fecha_hoy = date.today()
-                dias_restantes = (fecha_vencimiento - fecha_hoy).days
-                
-                if dias_restantes >= 0 and dias_restantes <= 7:
-                     factura['alerta_vencimiento'] = True
-                     factura['dias_restantes'] = dias_restantes
-                elif dias_restantes > 7:
-                     factura['dias_restantes'] = dias_restantes
-
-            except ValueError:
-                pass
-            
-        facturas_procesadas.append(factura)
-        
-    # Alerta general si hay alguna factura en riesgo (Pendiente y vence pronto o Vencida)
-    hay_alerta_general = any(f['alerta_vencimiento'] or f['estado_calculado'] == 'Vencida' for f in facturas_procesadas)
-    
-    return render_template('index.html', 
-                           facturas=facturas_procesadas,
-                           hay_alerta_general=hay_alerta_general)
-
-@app.route('/agregar', methods=['POST'])
-def agregar_factura():
-    """Agrega una nueva factura a la base de datos. El estado inicial siempre es 'Pendiente'."""
     if request.method == 'POST':
-        cliente = request.form['cliente']
-        monto = request.form['monto']
-        fecha = request.form['fecha']
-        # Forzamos el estado inicial a 'Pendiente'
-        estado = 'Pendiente' 
+        # ... (La lógica de POST es la misma)
+        nombre = request.form['nombre']
+        codigo_producto = request.form['codigo_producto']
+        precio = request.form['precio']
+        fecha_expira = request.form['fecha_expira']
+        email_cliente = request.form['email_cliente']
 
-        if not cliente or not monto or not fecha:
-            flash('Los campos Cliente, Monto y Fecha son obligatorios.', 'error')
+        # Validación básica de datos
+        if not all([nombre, codigo_producto, precio, fecha_expira, email_cliente]):
+            flash('Error: Todos los campos son obligatorios.', 'error')
+            return redirect(url_for('index'))
+        
+        try:
+            precio = float(precio)
+            # Validación de formato de fecha simple (YYYY-MM-DD)
+            datetime.strptime(fecha_expira, '%Y-%m-%d')
+        except ValueError:
+            flash('Error: El formato de Precio o Fecha es incorrecto. Use YYYY-MM-DD.', 'error')
             return redirect(url_for('index'))
 
-        conn = get_db()
-        conn.execute('INSERT INTO facturas (cliente, monto, fecha, estado) VALUES (?, ?, ?, ?)',
-                     (cliente, monto, fecha, estado))
-        conn.commit()
-        conn.close()
-        flash('Factura agregada con éxito e inicialmente marcada como Pendiente.', 'success')
-        return redirect(url_for('index'))
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO facturas (nombre, codigo_producto, precio, fecha_expira, email_cliente)
+                VALUES (?, ?, ?, ?, ?)
+            """, (nombre, codigo_producto, precio, fecha_expira, email_cliente))
+            conn.commit()
+            flash('Factura guardada con éxito.', 'success')
+        except Exception as e:
+            conn.rollback()
+            flash(f'Error al guardar la factura: {e}', 'error')
         
-@app.route('/marcar_pagada/<int:factura_id>')
-def marcar_pagada(factura_id):
-    """Marca una factura como 'Pagada' manualmente."""
-    conn = get_db()
-    conn.execute('UPDATE facturas SET estado = ? WHERE id = ?', ('Pagada', factura_id))
-    conn.commit()
-    conn.close()
-    flash(f'Factura #{factura_id} marcada como Pagada con éxito.', 'success')
-    return redirect(url_for('index'))
+        return redirect(url_for('index'))
 
-
-@app.route('/eliminar/<int:factura_id>')
-def eliminar_factura(factura_id):
-    """Elimina una factura por ID."""
-    conn = get_db()
-    conn.execute('DELETE FROM facturas WHERE id = ?', (factura_id,))
-    conn.commit()
-    conn.close()
-    flash('Factura eliminada con éxito.', 'success')
-    return redirect(url_for('index'))
+    # Método GET (para mostrar la página)
+    facturas = obtener_facturas(conn)
+    alertas = obtener_alertas(conn)
+    
+    # Formateo de fechas para presentación (DD/MM/AAAA)
+    facturas_con_formato = []
+    for factura in facturas:
+        f = dict(factura)
+        try:
+            fecha_obj = datetime.strptime(f['fecha_expira'], '%Y-%m-%d')
+            f['fecha_expira_format'] = fecha_obj.strftime('%d/%m/%Y')
+        except ValueError:
+            f['fecha_expira_format'] = f['fecha_expira'] 
+        facturas_con_formato.append(f)
+    
+    alertas_con_formato = []
+    for alerta in alertas:
+        a = dict(alerta)
+        try:
+            fecha_obj = datetime.strptime(a['fecha_expira'], '%Y-%m-%d')
+            a['fecha_expira_format'] = fecha_obj.strftime('%d/%m/%Y')
+        except ValueError:
+            a['fecha_expira_format'] = a['fecha_expira']
+        alertas_con_formato.append(a)
+    
+    return render_template('index.html', facturas=facturas_con_formato, alertas=alertas_con_formato)
 
 # --- CONFIGURACIÓN DE INICIO PARA ENTORNO LOCAL Y RENDER ---
 

@@ -1,18 +1,19 @@
 import os
 
 # gunicorn_config.py
+# Bind: Especifica la dirección y el puerto.
+# Utilizamos el puerto 8000 que es el estándar de Render
+bind = "0.0.0.0:8000"
 
-# Bind: Especifica la dirección y el puerto en el que Gunicorn escuchará.
-# Utilizamos 0.0.0.0 para escuchar en todas las interfaces de red
-# y el puerto $PORT que Render proporciona automáticamente.
-bind = "0.0.0.0:{}".format(os.environ.get("PORT", "5000"))
+# **CRUCIAL: Archivo de aplicación:** 'nombre_archivo:nombre_variable_app'
+# Le dice a Gunicorn que cargue la aplicación 'app' desde el archivo 'app.py'
+module = "app:app" 
 
 # Workers: Número de procesos que Gunicorn usará.
-# 2-4 workers es una buena práctica para empezar.
 workers = 4
 
 # Timeout: Tiempo máximo que un worker puede tardar en responder.
-timeout = 60 
+timeout = 60
 
 # Log Level: Nivel de detalle de los logs.
 loglevel = 'info'
