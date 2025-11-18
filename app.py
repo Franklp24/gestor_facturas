@@ -73,9 +73,6 @@ def index():
 def guardar_factura():
     """Inserta una nueva factura en la base de datos."""
     if request.method == 'POST':
-        # ... toda la lógica para obtener request.form['nombre'], etc. ...
-        # ... e insertar en la base de datos ...
-        return redirect(url_for('index'))
         # 1. Obtener datos del formulario
         nombre = request.form['nombre']
         codigo = request.form['codigo_producto']
