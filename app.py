@@ -1,6 +1,7 @@
 import sqlite3
-import os # <-- ¡AQUÍ DEBE IR!
-from flask import Flask, render_template, request, redirect, url_for
+import os
+from flask import Flask, render_template, request, redirect, url_for, flash
+from datetime import datetime
 
 # Configuración de la base de datos
 DATABASE = 'facturas.db'
@@ -12,36 +13,59 @@ def get_db():
     return conn
 
 def init_db():
-    """Inicializa la base de datos (crea la tabla si no existe)."""
+    """Inicializa la base de datos (crea la tabla si no existe) con las columnas correctas."""
     conn = get_db()
+    # Definición de la tabla con la columna 'fecha'
     conn.execute('''
         CREATE TABLE IF NOT EXISTS facturas (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             cliente TEXT NOT NULL,
             monto REAL NOT NULL,
-            fecha TEXT NOT NULL,
+            fecha TEXT NOT NULL, 
             estado TEXT NOT NULL
         )
     ''')
     conn.commit()
     conn.close()
 
-# Inicializa la base de datos al inicio de la aplicación
-# NOTA: En Render, la base de datos SQLite se reiniciará cada vez que la aplicación se apague.
-# Esto es normal en plataformas gratuitas que no tienen un servicio de base de datos persistente.
-# Para persistencia REAL, se necesitaría un servicio de PostgreSQL, que Render también ofrece (pero puede requerir tarjeta).
-init_db()
-
+def reset_db():
+    """ELIMINA Y RECREA la tabla facturas. Se usa para corregir errores de esquema antiguos."""
+    conn = get_db()
+    conn.execute('DROP TABLE IF EXISTS facturas')
+    conn.commit()
+    conn.close()
+    init_db()
+    print("Database reset and re-initialized.")
+    
 # Inicializa la aplicación Flask
 app = Flask(__name__)
+# Configura una clave secreta. Es necesaria para usar flash() o sesiones.
+app.secret_key = os.environ.get('SECRET_KEY', 'una_clave_secreta_por_defecto_muy_larga_y_segura_debes_cambiarla')
+
+# Inicializa la base de datos (la crea si no existe)
+init_db()
 
 # --- Rutas de la Aplicación ---
 
 @app.route('/')
 def index():
-    """Muestra la lista de facturas."""
+    """Muestra la lista de facturas, con corrección automática de esquema."""
     conn = get_db()
-    facturas = conn.execute('SELECT * FROM facturas ORDER BY fecha DESC').fetchall()
+    
+    # Intenta hacer la consulta. Si falla por la columna 'fecha', resetea la DB.
+    try:
+        facturas = conn.execute('SELECT * FROM facturas ORDER BY fecha DESC').fetchall()
+    except sqlite3.OperationalError as e:
+        # Si el error es "no such column: fecha", reseteamos la base de datos.
+        if "no such column: fecha" in str(e):
+            print("Error de esquema detectado. La tabla será recreada.")
+            reset_db()
+            # Intenta la consulta de nuevo
+            facturas = conn.execute('SELECT * FROM facturas ORDER BY fecha DESC').fetchall()
+        else:
+            # Si es otro error de SQLite, lo lanzamos.
+            raise e
+            
     conn.close()
     return render_template('index.html', facturas=facturas)
 
@@ -53,6 +77,10 @@ def agregar_factura():
         monto = request.form['monto']
         fecha = request.form['fecha']
         estado = request.form['estado']
+
+        if not cliente or not monto or not fecha or not estado:
+            flash('Todos los campos son obligatorios.', 'error')
+            return redirect(url_for('index'))
 
         conn = get_db()
         conn.execute('INSERT INTO facturas (cliente, monto, fecha, estado) VALUES (?, ?, ?, ?)',
